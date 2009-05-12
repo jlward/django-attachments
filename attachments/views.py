@@ -31,7 +31,7 @@ def new_attachment(request, content_type, object_id,
         attachment_form = form_cls()
 
     return render_to_response(template_name, {
-        "attachment_form": attachment_form,
+        "form": attachment_form,
         "object": object
     }, context_instance=RequestContext(request))
 
@@ -57,13 +57,14 @@ def list_attachments(request, content_type, object_id,
         raise Http404
 
     attachments = Attachment.objects.attachments_for_object(object)
-    if request.META.get('HTTP_ACCEPT', None) == 'application/javascript':
+    for (media_type, q_value) in request.accepted_types:
+        if media_type == 'application/json':
             data = serializers.serialize('json', attachments)
-            return HttpResponse(data, mimetype='application/javascript')
-    else:
-        return render_to_response(template_name, {
-            'object_list': attachments,
-            'object': object
-        }, context_instance=RequestContext(request))
+            return HttpResponse(data, mimetype='application/json')
+        else:
+            return render_to_response(template_name, {
+                'object_list': attachments,
+                'object': object
+            }, context_instance=RequestContext(request))
 
 
