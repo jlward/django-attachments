@@ -19,8 +19,8 @@ except:
 
 
 def unique_slugify(instance, value, slug_field_name='slug', queryset=None,
-                   slug_separator='-'):    
-    """     
+                   slug_separator='-'):
+    """
     Calculates a unique slug of ``value`` for an instance.
 
     ``slug_field_name`` should be a string matching the name of the field to
@@ -28,10 +28,10 @@ def unique_slugify(instance, value, slug_field_name='slug', queryset=None,
 
     ``queryset`` usually doesn't need to be explicitly provided - it'll default
     to using the ``.all()`` queryset from the model's default manager.
-    
-    from http://www.djangosnippets.org/snippets/690/    
+
+    from http://www.djangosnippets.org/snippets/690/
     """
-    
+
     slug_field = instance._meta.get_field(slug_field_name)
 
     slug = getattr(instance, slug_field.attname)
@@ -79,19 +79,22 @@ def _slug_strip(value, separator=None):
         re_sep = '(?:-|%s)' % re.escape(separator)
         value = re.sub('%s+' % re_sep, separator, value)
     return re.sub(r'^%s+|%s+$' % (re_sep, re_sep), '', value)
-    
+
 
 class AttachmentManager(models.Manager):
     """
     Methods borrowed from django-threadedcomments
     """
-    
+
     def _generate_object_kwarg_dict(self, content_object, **kwargs):
         """
         Generates the most comment keyword arguments for a given ``content_object``.
         """
         kwargs['content_type'] = ContentType.objects.get_for_model(content_object)
-        kwargs['object_id'] = getattr(content_object, 'pk', getattr(content_object, 'id'))
+        try:
+            kwargs['object_id'] = content_object.pk
+        except AttributeError:
+            kwargs['object_id'] = content_object.id
         return kwargs
 
     def create_for_object(self, content_object, **kwargs):
@@ -99,7 +102,7 @@ class AttachmentManager(models.Manager):
         A simple wrapper around ``create`` for a given ``content_object``.
         """
         return self.create(**self._generate_object_kwarg_dict(content_object, **kwargs))
-        
+
     def attachments_for_object(self, content_object, **kwargs):
         """
         Prepopulates a QuerySet with all attachments related to the given ``content_object``.
@@ -111,7 +114,7 @@ class Attachment(models.Model):
     file = models.FileField(_("file"), upload_to=ATTACHMENT_DIR)
     content_type = models.ForeignKey(ContentType)
     object_id = models.PositiveIntegerField()
-    content_object = generic.GenericForeignKey("content_type", "object_id") 
+    content_object = generic.GenericForeignKey("content_type", "object_id")
     attached_timestamp = models.DateTimeField(_("date attached"),
                                               default=datetime.now)
     title = models.CharField(_("title"), max_length=200, blank=True, null=True)
@@ -135,14 +138,14 @@ class Attachment(models.Model):
     def save(self, force_insert=False, force_update=False):
         unique_slugify(self, self.title)
         super(Attachment, self).save(force_insert, force_update)
-        
+
     def file_url(self):
         return encoding.iri_to_uri(self.file.url)
-    
-    
+
+
 class TestModel(models.Model):
     """
-    This model is simply used by this application's test suite as a model to 
+    This model is simply used by this application's test suite as a model to
     which to attach files.
     """
     name = models.CharField(max_length=32)
