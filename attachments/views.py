@@ -12,7 +12,8 @@ from attachments.forms import AttachmentForm
 @login_required
 def new_attachment(request, content_type, object_id,
                    template_name='attachments/new_attachment.html',
-                   form_cls=AttachmentForm):
+                   form_cls=AttachmentForm,
+                   redirect=lambda : object.get_absolute_url()):
     object_type = get_object_or_404(ContentType, id = int(content_type))
     try:
         object = object_type.get_object_for_this_type(pk=int(object_id))
@@ -26,7 +27,10 @@ def new_attachment(request, content_type, object_id,
             attachment.object_id = object_id
             attachment.attached_by = request.user
             attachment.save()
-            return HttpResponseRedirect(object.get_absolute_url())
+            if callable(redirect):
+                return HttpResponseRedirect(redirect())
+            else:
+                return HttpResponseRedirect(redirect)
     else:
         attachment_form = form_cls()
 
@@ -57,13 +61,13 @@ def list_attachments(request, content_type, object_id,
         raise Http404
 
     attachments = Attachment.objects.attachments_for_object(object)
-    for (media_type, q_value) in request.accepted_types:
+    for media_type in request.accepted_types:
         if media_type == 'application/json':
             data = serializers.serialize('json', attachments)
             return HttpResponse(data, mimetype='application/json')
         else:
             return render_to_response(template_name, {
-                'object_list': attachments,
+                'attachments': attachments,
                 'object': object
             }, context_instance=RequestContext(request))
 
