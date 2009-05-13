@@ -8,7 +8,7 @@ from django.utils import encoding
 from django.utils.http import urlquote
 from django.utils.translation import ugettext_lazy as _
 
-import re
+import re, os.path
 from datetime import datetime
 
 # Get relative media path
@@ -109,6 +109,27 @@ class AttachmentManager(models.Manager):
         """
         return self.filter(**self._generate_object_kwarg_dict(content_object, **kwargs))
 
+    def shallow_copy_attachments(self, from_object, to_object):
+        """
+        Shallowly copy all of the attachments on from_object to to_object. The
+        fields will be pointing at the same file.
+        """
+        attachments = self.attachments_for_object(from_object)
+
+        for attachment in attachments:
+            copy = attachment
+            # Copy over all of the field values
+            #for field_name in attachment._meta.get_all_field_names():
+            #    setattr(copy, field_name, getattr(attachment, field_name))
+
+            # Modify the generic FK so that it points to the 'to_object'
+            for field, value in self._generate_object_kwarg_dict(to_object):
+                setattr(copy, field, value)
+
+            # Clear the PK so that we're creating another
+            copy.pk = None
+            copy.save()
+
 
 class Attachment(models.Model):
     file = models.FileField(_("file"), upload_to=ATTACHMENT_DIR)
@@ -133,7 +154,7 @@ class Attachment(models.Model):
         verbose_name_plural = _('attachments')
 
     def __unicode__(self):
-        return self.title or unicode(_('[no title]'))
+        return self.title or self.file_name()
 
     def save(self, force_insert=False, force_update=False):
         unique_slugify(self, self.title)
@@ -142,6 +163,11 @@ class Attachment(models.Model):
     def file_url(self):
         return encoding.iri_to_uri(self.file.url)
 
+    def file_name(self):
+        """
+        Outputs just the file's name and extension without the full path.
+        """
+        return os.path.basename(self.file.name)
 
 class TestModel(models.Model):
     """
