@@ -123,7 +123,8 @@ class AttachmentManager(models.Manager):
             #    setattr(copy, field_name, getattr(attachment, field_name))
 
             # Modify the generic FK so that it points to the 'to_object'
-            for field, value in self._generate_object_kwarg_dict(to_object):
+            kwargs_dict = self._generate_object_kwarg_dict(to_object)
+            for field, value in kwargs_dict.items():
                 setattr(copy, field, value)
 
             # Clear the PK so that we're creating another
