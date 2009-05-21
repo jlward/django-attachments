@@ -114,6 +114,10 @@ class AttachmentManager(models.Manager):
         Shallowly copy all of the attachments on from_object to to_object. The
         fields will be pointing at the same file.
         """
+        # First delete all of the attachments on the to_object
+        old_attachments = self.attachments_for_object(to_object)
+        old_attachments.delete()
+
         attachments = self.attachments_for_object(from_object)
 
         for attachment in attachments:
@@ -133,7 +137,7 @@ class AttachmentManager(models.Manager):
 
 
 class Attachment(models.Model):
-    file = models.FileField(_("file"), upload_to=ATTACHMENT_DIR)
+    file = models.FileField(_("file"), upload_to=ATTACHMENT_DIR, max_length=255)
     content_type = models.ForeignKey(ContentType)
     object_id = models.PositiveIntegerField()
     content_object = generic.GenericForeignKey("content_type", "object_id")
