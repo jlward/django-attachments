@@ -13,7 +13,7 @@ from attachments.forms import AttachmentForm
 def new_attachment(request, content_type, object_id,
                    template_name='attachments/new_attachment.html',
                    form_cls=AttachmentForm,
-                   redirect=lambda : object.get_absolute_url()):
+                   redirect=lambda object, attachment: object.get_absolute_url()):
     object_type = get_object_or_404(ContentType, id = int(content_type))
     try:
         object = object_type.get_object_for_this_type(pk=int(object_id))
@@ -22,13 +22,12 @@ def new_attachment(request, content_type, object_id,
     if request.method == "POST":
         attachment_form = form_cls(request.POST, request.FILES)
         if attachment_form.is_valid():
-            attachment = attachment_form.save(commit=False)
-            attachment.content_type = object_type
-            attachment.object_id = object_id
+            attachment = attachment_form.save(content_object=object,
+                                              commit=False)
             attachment.attached_by = request.user
             attachment.save()
             if callable(redirect):
-                return HttpResponseRedirect(redirect())
+                return HttpResponseRedirect(redirect(object, attachment))
             else:
                 return HttpResponseRedirect(redirect)
     else:

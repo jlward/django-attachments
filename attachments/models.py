@@ -7,9 +7,13 @@ from django.template.defaultfilters import slugify
 from django.utils import encoding
 from django.utils.http import urlquote
 from django.utils.translation import ugettext_lazy as _
+from django.core.exceptions import ImproperlyConfigured
 
 import re, os.path
+
 from datetime import datetime
+
+import directory_schemes
 
 # Get relative media path
 try:
@@ -135,9 +139,73 @@ class AttachmentManager(models.Manager):
             copy.pk = None
             copy.save()
 
+    def deep_copy_attachments(self, from_object, to_object):
+        """
+        Deeply copy all of the attachments on from_object to to_object. The
+        file is duplicated also.
+        """
+        # First delete all of the attachments on the to_object
+        old_attachments = self.attachments_for_object(to_object)
+        old_attachments.delete()
+
+        attachments = self.attachments_for_object(from_object)
+
+        for attachment in attachments:
+            copy = attachment
+
+            # Modify the generic FK so that it points to the 'to_object'
+            kwargs_dict = self._generate_object_kwarg_dict(to_object)
+            for field, value in kwargs_dict.items():
+                setattr(copy, field, value)
+
+            # Clear the PK so that we're creating another
+            copy.pk = None
+            copy.save()
+
+def get_callable_from_string(path):
+    """
+    Gets a callable from a string representing an import
+    (eg. django.template.loaders.filesystem.load_template_source).
+    Adapted from django.template.loader.find_template_source
+    """
+    i = path.rfind('.')
+    module, attr = path[:i], path[i+1:]
+    try:
+        mod = __import__(module, globals(), locals(), [attr])
+    except ImportError, e:
+        raise ImproperlyConfigured, 'Error importing callable %s: "%s"' % (module, e)
+    try:
+        func = getattr(mod, attr)
+    except AttributeError:
+        raise ImproperlyConfigured, 'Module "%s" does not define a "%s" callable' % (module, attr)
+
+    return func
 
 class Attachment(models.Model):
-    file = models.FileField(_("file"), upload_to=ATTACHMENT_DIR, max_length=255)
+    def get_attachment_dir(instance, filename):
+        """
+        The attachment directory to store the file in.
+
+        Builds the location based on the ATTACHMENT_STORAGE_DIR setting which
+        is a callable (in the same string format as TEMPLATE_LOADERS) that takes
+        an attachment and a filename and then returns a string.
+        """
+        if getattr(settings, 'ATTACHMENT_STORAGE_DIR', None):
+            try:
+                dir_builder = get_callable_from_string(
+                    settings.ATTACHMENT_STORAGE_DIR)
+            except ImproperlyConfigured:
+                # Callable didn't load correctly
+                dir_builder = directory_schemes.by_app
+        else:
+            dir_builder = directory_schemes.by_app
+
+        return dir_builder(instance, filename)
+
+
+
+    file = models.FileField(_("file"), upload_to=get_attachment_dir,
+                            max_length=255)
     content_type = models.ForeignKey(ContentType)
     object_id = models.PositiveIntegerField()
     content_object = generic.GenericForeignKey("content_type", "object_id")
