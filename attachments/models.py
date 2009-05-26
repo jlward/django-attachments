@@ -208,18 +208,22 @@ class Attachment(models.Model):
         return os.path.basename(self.file.name)
 
     def copy(self, to_object, deepcopy=False):
-        copy = self
+        copy = Attachment()
+
+        copy.title = self.title
+        copy.slug = self.slug
+        copy.summary = self.summary
+        copy.attached_by = self.attached_by
 
         # Modify the generic FK so that it points to the 'to_object'
         kwargs_dict = Attachment.objects._generate_object_kwarg_dict(to_object)
         for field, value in kwargs_dict.items():
             setattr(copy, field, value)
 
-        # Clear the PK so that we're creating another
-        copy.pk = None
-
         if deepcopy and self.file:
             copy.file.save(self.file_name(), self.file)
+        elif self.file:
+            copy.file = file
 
         copy.save()
         return copy

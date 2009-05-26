@@ -7,6 +7,7 @@ from django.core.files import File
 from attachments.models import Attachment, TestModel
 
 import os
+from tempfile import NamedTemporaryFile
 
 """
 
@@ -58,9 +59,15 @@ class TestAttachmentCopying(TestCase):
         self.tm2 = TestModel(name="Test2")
         self.tm2.save()
 
-        TEST_DIR = os.path.join(os.path.dirname(__file__))
-        self.TEST_FILE1 = os.path.join(TEST_DIR, "models.py")
-        self.TEST_FILE2 = os.path.join(TEST_DIR, "views.py")
+        self.test_file1 = NamedTemporaryFile('w+')
+        self.test_file1.write("some test text")
+        self.test_file1.flush()
+        self.test_file1.seek(0)
+
+        self.test_file2 = NamedTemporaryFile('w+')
+        self.test_file2.write("some test text")
+        self.test_file2.flush()
+        self.test_file2.seek(0)
 
     def testDeepCopying(self):
         """
@@ -68,9 +75,9 @@ class TestAttachmentCopying(TestCase):
         second version of a file.
         """
         att1 = Attachment.objects.create_for_object(
-            self.tm, file=self.TEST_FILE1, attached_by=self.bob,
+            self.tm, file=self.test_file1, attached_by=self.bob,
             title="Something", summary="Something")
-        f = File(open(self.TEST_FILE1, 'wb'))
+        f = File(self.test_file1)
         att1.file.save('models.py', f)
 
         att2 = att1.copy(self.tm2, deepcopy=True)
