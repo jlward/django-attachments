@@ -10,80 +10,16 @@ from django.utils.translation import ugettext_lazy as _
 from django.core.exceptions import ImproperlyConfigured
 
 import re, os.path
-
 from datetime import datetime
 
 import directory_schemes
+from utils import get_callable_from_string, unique_slugify
 
 # Get relative media path
 try:
     ATTACHMENT_DIR = settings.ATTACHMENT_DIR
 except:
     ATTACHMENT_DIR = "attachments"
-
-
-def unique_slugify(instance, value, slug_field_name='slug', queryset=None,
-                   slug_separator='-'):
-    """
-    Calculates a unique slug of ``value`` for an instance.
-
-    ``slug_field_name`` should be a string matching the name of the field to
-    store the slug in (and the field to check against for uniqueness).
-
-    ``queryset`` usually doesn't need to be explicitly provided - it'll default
-    to using the ``.all()`` queryset from the model's default manager.
-
-    from http://www.djangosnippets.org/snippets/690/
-    """
-
-    slug_field = instance._meta.get_field(slug_field_name)
-
-    slug = getattr(instance, slug_field.attname)
-    slug_len = slug_field.max_length
-
-    # Sort out the initial slug. Chop its length down if we need to.
-    slug = slugify(value)
-    if slug_len:
-        slug = slug[:slug_len]
-    slug = _slug_strip(slug, slug_separator)
-    original_slug = slug
-
-    # Create a queryset, excluding the current instance.
-    if not queryset:
-        queryset = instance.__class__._default_manager.all()
-        if instance.pk:
-            queryset = queryset.exclude(pk=instance.pk)
-
-    # Find a unique slug. If one matches, at '-2' to the end and try again
-    # (then '-3', etc).
-    next = 2
-    while not slug or queryset.filter(**{slug_field_name: slug}):
-        slug = original_slug
-        end = '-%s' % next
-        if slug_len and len(slug) + len(end) > slug_len:
-            slug = slug[:slug_len-len(end)]
-            slug = _slug_strip(slug, slug_separator)
-        slug = '%s%s' % (slug, end)
-        next += 1
-
-    setattr(instance, slug_field.attname, slug)
-
-
-def _slug_strip(value, separator=None):
-    """
-    Cleans up a slug by removing slug separator characters that occur at the
-    beginning or end of a slug.
-
-    If an alternate separator is used, it will also replace any instances of
-    the default '-' separator with the new separator.
-    """
-    if separator == '-' or not separator:
-        re_sep = '-'
-    else:
-        re_sep = '(?:-|%s)' % re.escape(separator)
-        value = re.sub('%s+' % re_sep, separator, value)
-    return re.sub(r'^%s+|%s+$' % (re_sep, re_sep), '', value)
-
 
 class AttachmentManager(models.Manager):
     """
@@ -127,24 +63,6 @@ class AttachmentManager(models.Manager):
         for attachment in attachments:
             copy = attachment.copy(to_object, deepcopy)
 
-def get_callable_from_string(path):
-    """
-    Gets a callable from a string representing an import
-    (eg. django.template.loaders.filesystem.load_template_source).
-    Adapted from django.template.loader.find_template_source
-    """
-    i = path.rfind('.')
-    module, attr = path[:i], path[i+1:]
-    try:
-        mod = __import__(module, globals(), locals(), [attr])
-    except ImportError, e:
-        raise ImproperlyConfigured, 'Error importing callable %s: "%s"' % (module, e)
-    try:
-        func = getattr(mod, attr)
-    except AttributeError:
-        raise ImproperlyConfigured, 'Module "%s" does not define a "%s" callable' % (module, attr)
-
-    return func
 
 class Attachment(models.Model):
     def get_attachment_dir(instance, filename):
@@ -166,8 +84,6 @@ class Attachment(models.Model):
             dir_builder = directory_schemes.by_app
 
         return dir_builder(instance, filename)
-
-
 
     file = models.FileField(_("file"), upload_to=get_attachment_dir,
                             max_length=255)
@@ -195,7 +111,12 @@ class Attachment(models.Model):
         return self.title or self.file_name()
 
     def save(self, force_insert=False, force_update=False):
-        unique_slugify(self, self.title)
+        # Ensure this slug is unique amongst attachments attached to this object
+        queryset = Attachment.objects.filter(
+            content_object=instance.content_object)
+        if self.pk:
+            queryset = queryset.exclude(pk=self.pk)
+        unique_slugify(self, self.title, queryset=queryset)
         super(Attachment, self).save(force_insert, force_update)
 
     def file_url(self):
