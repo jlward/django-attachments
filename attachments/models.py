@@ -113,36 +113,10 @@ class AttachmentManager(models.Manager):
         """
         return self.filter(**self._generate_object_kwarg_dict(content_object, **kwargs))
 
-    def shallow_copy_attachments(self, from_object, to_object):
+    def copy_attachments(self, from_object, to_object, deepcopy=False):
         """
-        Shallowly copy all of the attachments on from_object to to_object. The
-        fields will be pointing at the same file.
-        """
-        # First delete all of the attachments on the to_object
-        old_attachments = self.attachments_for_object(to_object)
-        old_attachments.delete()
-
-        attachments = self.attachments_for_object(from_object)
-
-        for attachment in attachments:
-            copy = attachment
-            # Copy over all of the field values
-            #for field_name in attachment._meta.get_all_field_names():
-            #    setattr(copy, field_name, getattr(attachment, field_name))
-
-            # Modify the generic FK so that it points to the 'to_object'
-            kwargs_dict = self._generate_object_kwarg_dict(to_object)
-            for field, value in kwargs_dict.items():
-                setattr(copy, field, value)
-
-            # Clear the PK so that we're creating another
-            copy.pk = None
-            copy.save()
-
-    def deep_copy_attachments(self, from_object, to_object):
-        """
-        Deeply copy all of the attachments on from_object to to_object. The
-        file is duplicated also.
+        Copy all of the attachments on from_object to to_object. The
+        fields will be pointing at the same file unless deepcopy is False.
         """
         # First delete all of the attachments on the to_object
         old_attachments = self.attachments_for_object(to_object)
@@ -151,16 +125,7 @@ class AttachmentManager(models.Manager):
         attachments = self.attachments_for_object(from_object)
 
         for attachment in attachments:
-            copy = attachment
-
-            # Modify the generic FK so that it points to the 'to_object'
-            kwargs_dict = self._generate_object_kwarg_dict(to_object)
-            for field, value in kwargs_dict.items():
-                setattr(copy, field, value)
-
-            # Clear the PK so that we're creating another
-            copy.pk = None
-            copy.save()
+            copy = attachment.copy(to_object, deepcopy)
 
 def get_callable_from_string(path):
     """
@@ -241,6 +206,23 @@ class Attachment(models.Model):
         Outputs just the file's name and extension without the full path.
         """
         return os.path.basename(self.file.name)
+
+    def copy(self, to_object, deepcopy=False):
+        copy = self
+
+        # Modify the generic FK so that it points to the 'to_object'
+        kwargs_dict = Attachment.objects._generate_object_kwarg_dict(to_object)
+        for field, value in kwargs_dict.items():
+            setattr(copy, field, value)
+
+        # Clear the PK so that we're creating another
+        copy.pk = None
+
+        if deepcopy and self.file:
+            copy.file.save(self.file_name(), self.file)
+
+        copy.save()
+        return copy
 
 class TestModel(models.Model):
     """
