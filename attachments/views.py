@@ -39,8 +39,33 @@ def new_attachment(request, content_type, object_id,
     }, context_instance=RequestContext(request))
 
 @login_required
-def delete_attachment(request, attachment_slug):
-    attachment = get_object_or_404(Attachment, slug=attachment_slug)
+def edit_attachment(request, attachment_id,
+                   template_name='attachments/edit_attachment.html',
+                   form_cls=AttachmentForm,
+                   redirect=lambda object, attachment: object.get_absolute_url()):
+    attachment = get_object_or_404(Attachment, pk=attachment_id)
+
+    if request.method == "POST":
+        attachment_form = form_cls(request.POST, request.FILES,
+                                   instance=attachment)
+        if attachment_form.is_valid():
+            attachment = attachment_form.save(commit=False)
+            attachment.attached_by = request.user
+            attachment.save()
+            if callable(redirect):
+                return HttpResponseRedirect(redirect(object, attachment))
+            else:
+                return HttpResponseRedirect(redirect)
+    else:
+        attachment_form = form_cls(instance=attachment)
+
+    return render_to_response(template_name, {
+        "form": attachment_form,
+    }, context_instance=RequestContext(request))
+
+@login_required
+def delete_attachment(request, attachment_id):
+    attachment = get_object_or_404(Attachment, pk=attachment_d)
     object_type = attachment.content_type
     try:
         object = object_type.get_object_for_this_type(pk=attachment.object_id)
