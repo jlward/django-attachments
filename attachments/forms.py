@@ -11,7 +11,7 @@ class AttachmentForm(forms.ModelForm):
             self.instance.content_type = ContentType.objects.get_for_model(
                 content_object)
             self.instance.object_id = content_object.pk
-        else if not self.instance.pk:
+        elif not self.instance.pk:
             # If we're creating a new attachment, content_object is required
             raise AttributeError, "AttachmentForm.save() requires a content_object for new attachments"
 
