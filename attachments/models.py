@@ -3,13 +3,12 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes import generic
 from django.contrib.auth.models import User
 from django.conf import settings
-from django.template.defaultfilters import slugify
 from django.utils import encoding
 from django.utils.http import urlquote
 from django.utils.translation import ugettext_lazy as _
 from django.core.exceptions import ImproperlyConfigured
 
-import re, os.path
+import os.path
 from datetime import datetime
 
 import directory_schemes
@@ -113,7 +112,7 @@ class Attachment(models.Model):
     def save(self, force_insert=False, force_update=False):
         # Ensure this slug is unique amongst attachments attached to this object
         queryset = Attachment.objects.filter(
-            content_object=self.content_object)
+            content_type=self.content_type, object_id=self.object_id)
         if self.pk:
             queryset = queryset.exclude(pk=self.pk)
         unique_slugify(self, self.title, queryset=queryset)

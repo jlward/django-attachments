@@ -1,3 +1,7 @@
+from django.template.defaultfilters import slugify
+
+import re
+
 def unique_slugify(instance, value, slug_field_name='slug', queryset=None,
                    slug_separator='-'):
     """
