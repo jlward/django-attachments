@@ -113,7 +113,7 @@ class Attachment(models.Model):
     def save(self, force_insert=False, force_update=False):
         # Ensure this slug is unique amongst attachments attached to this object
         queryset = Attachment.objects.filter(
-            content_object=instance.content_object)
+            content_object=self.content_object)
         if self.pk:
             queryset = queryset.exclude(pk=self.pk)
         unique_slugify(self, self.title, queryset=queryset)
