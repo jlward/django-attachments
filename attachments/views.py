@@ -6,7 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import serializers
 
 from attachments.models import Attachment
-from attachments.forms import AttachmentForm
+from attachments.forms import AttachmentForm, AttachmentEditForm
 
 
 @login_required
@@ -41,7 +41,7 @@ def new_attachment(request, content_type, object_id,
 @login_required
 def edit_attachment(request, attachment_id,
                    template_name='attachments/edit_attachment.html',
-                   form_cls=AttachmentForm,
+                   form_cls=AttachmentEditForm,
                    redirect=lambda object, attachment: object.get_absolute_url()):
     attachment = get_object_or_404(Attachment, pk=attachment_id)
 

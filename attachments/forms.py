@@ -1,31 +1,36 @@
 from django import forms
 from django.contrib.contenttypes.models import ContentType
+from django.utils.translation import ugettext_lazy as _
 
 from attachments.models import Attachment
 
 
 class AttachmentForm(forms.ModelForm):
 
-    def save(self, content_object=None, *args, **kwargs):
-        if content_object:
-            self.instance.content_type = ContentType.objects.get_for_model(
-                content_object)
-            self.instance.object_id = content_object.pk
-        elif not self.instance.pk:
-            # If we're creating a new attachment, content_object is required
-            raise AttributeError, "AttachmentForm.save() requires a content_object for new attachments"
+    def save(self, content_object, *args, **kwargs):
+        self.instance.content_type = ContentType.objects.get_for_model(
+            content_object)
+        self.instance.object_id = content_object.pk
 
-        super(AttachmentForm, self).save(*args, **kwargs)
+        return super(AttachmentForm, self).save(*args, **kwargs)
 
-    def clean(self, cleaned_data):
+    class Meta:
+        model = Attachment
+        exclude = ('content_type', 'object_id', 'attached_by')
+
+
+class AttachmentEditForm(forms.ModelForm):
+    file = forms.FileField(required=False, label=_("file"))
+
+    def clean_file(self):
         """
         Don't delete the old file if our edit doesn't upload a new one.
         """
-        if self.instance.pk:
-            if not cleaned_data['file']:
-                cleaned_data['file'] = self.instance.file
+        file = self.cleaned_data['file']
+        if not file:
+            file = self.instance.file
 
-        return cleaned_data
+        return file
 
     class Meta:
         model = Attachment
