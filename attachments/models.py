@@ -129,6 +129,14 @@ class Attachment(models.Model):
         return os.path.basename(self.file.name)
 
     def copy(self, to_object, deepcopy=False):
+        """
+        Create a copy of this attachment that's attached to to_object instead of
+        the current content_object. If deepcopy is set to true, the file will be
+        copied instead of both attachments pointing at the same file.
+
+        Convoluted copying is needed in order for the upload_to function in the
+        FileField to actually be evaluated properly.
+        """
         copy = Attachment()
 
         copy.title = self.title
