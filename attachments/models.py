@@ -42,11 +42,17 @@ class AttachmentManager(models.Manager):
         """
         return self.create(**self._generate_object_kwarg_dict(content_object, **kwargs))
 
-    def attachments_for_object(self, content_object, **kwargs):
+    def attachments_for_object(self, content_object, file_name=None, title=None, **kwargs):
         """
         Prepopulates a QuerySet with all attachments related to the given ``content_object``.
         """
-        return self.filter(**self._generate_object_kwarg_dict(content_object, **kwargs))
+        query = self.filter(**self._generate_object_kwarg_dict(content_object, **kwargs))
+        if file_name:
+            query = query.filter(file__iendswith=file_name)
+        if title:
+            query = query.filter(title=title)
+
+        return query
 
     def copy_attachments(self, from_object, to_object, deepcopy=False):
         """
@@ -116,6 +122,8 @@ class Attachment(models.Model):
         if self.pk:
             queryset = queryset.exclude(pk=self.pk)
         unique_slugify(self, self.title, queryset=queryset)
+        if not self.title:
+            self.title = self.file_name()
         super(Attachment, self).save(force_insert, force_update)
 
     def file_url(self):
