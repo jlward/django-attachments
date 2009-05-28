@@ -67,10 +67,6 @@ def edit_attachment(request, attachment_id,
 def delete_attachment(request, attachment_id):
     attachment = get_object_or_404(Attachment, pk=attachment_d)
     object_type = attachment.content_type
-    try:
-        object = object_type.get_object_for_this_type(pk=attachment.object_id)
-    except object_type.DoesNotExist:
-        raise Http404
     if request.method == "POST":
         attachment.delete()
     return HttpResponseRedirect(object.get_absolute_url())
