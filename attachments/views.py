@@ -78,9 +78,7 @@ def delete_attachment(request, attachment_id, redirect=None):
             return HttpResponseRedirect(redirect)
     else:
         message = {'success': True}
-        content = simplejson.dumps(
-            message, indent=2, cls=serializers.json.DjangoJSONEncoder,
-            ensure_ascii=False)
+        content = simplejson.dumps(message, ensure_ascii=False)
         return HttpResponse(content, content_type='application/json')
 
 @login_required
