@@ -1,9 +1,10 @@
 from django.shortcuts import render_to_response, get_object_or_404
-from django.http import HttpResponseRedirect, Http404
+from django.http import HttpResponseRedirect, Http404, HttpResponse
 from django.template import RequestContext
 from django.contrib.auth.decorators import login_required
 from django.contrib.contenttypes.models import ContentType
 from django.core import serializers
+from django.utils import simplejson
 
 from attachments.models import Attachment
 from attachments.forms import AttachmentForm, AttachmentEditForm
@@ -64,12 +65,23 @@ def edit_attachment(request, attachment_id,
     }, context_instance=RequestContext(request))
 
 @login_required
-def delete_attachment(request, attachment_id):
-    attachment = get_object_or_404(Attachment, pk=attachment_d)
+def delete_attachment(request, attachment_id, redirect=None):
+    attachment = get_object_or_404(Attachment, pk=attachment_id)
     object_type = attachment.content_type
     if request.method == "POST":
         attachment.delete()
-    return HttpResponseRedirect(object.get_absolute_url())
+
+    if redirect:
+        if callable(redirect):
+            return HttpResponseRedirect(redirect(object, attachment))
+        else:
+            return HttpResponseRedirect(redirect)
+    else:
+        message = {'success': True}
+        content = simplejson.dumps(
+            message, indent=2, cls=serializers.json.DjangoJSONEncoder,
+            ensure_ascii=False)
+        return HttpResponse(content, content_type='application/json')
 
 @login_required
 def list_attachments(request, content_type, object_id,
