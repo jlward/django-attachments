@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, connection
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes import generic
 from django.contrib.auth.models import User
@@ -7,6 +7,8 @@ from django.utils import encoding
 from django.utils.http import urlquote
 from django.utils.translation import ugettext_lazy as _
 from django.core.exceptions import ImproperlyConfigured
+
+qn = connection.ops.quote_name
 
 import os.path
 from datetime import datetime
@@ -53,6 +55,75 @@ class AttachmentManager(models.Manager):
             query = query.filter(title=title)
 
         return query
+
+    def _get_usage(self, model, counts=False, min_count=None, extra_joins=None, extra_criteria=None, params=None):
+        """
+        Perform the custom SQL query for ``usage_for_model`` and
+        ``usage_for_queryset``.
+        """
+        if min_count is not None: counts = True
+
+        model_table = qn(model._meta.db_table)
+        model_pk = '%s.%s' % (model_table, qn(model._meta.pk.column))
+        field_cols = [qn(field.attname) for field in self.model._meta.local_fields]
+        attachment = qn(self.model._meta.db_table)
+        field_cols = ['%s.%s' % (attachment, col) for col in field_cols]
+        query = """
+        SELECT DISTINCT %(fields)s%(count_sql)s
+        FROM
+            %(attachment)s
+            INNER JOIN %(model)s
+                ON %(attachment)s.object_id = %(model_pk)s
+            %%s
+        WHERE %(attachment)s.content_type_id = %(content_type_id)s
+            %%s
+        GROUP BY %(attachment)s.id
+        %%s
+        ORDER BY %(attachment)s.id ASC""" % {
+            'fields': ', '.join(field_cols),
+            'attachment': attachment,
+            'count_sql': counts and (', COUNT(%s)' % model_pk) or '',
+            'model': model_table,
+            'model_pk': model_pk,
+            'content_type_id': ContentType.objects.get_for_model(model).pk,
+        }
+
+        min_count_sql = ''
+        if min_count is not None:
+            min_count_sql = 'HAVING COUNT(%s) >= %%s' % model_pk
+            params.append(min_count)
+
+        cursor = connection.cursor()
+        cursor.execute(query % (extra_joins, extra_criteria, min_count_sql), params)
+        attachments = []
+        for row in cursor.fetchall():
+            a = self.model(*row[:-1])
+            if counts:
+                a.count = row[-1:]
+            attachments.append(a)
+        return attachments
+
+    def usage_for_queryset(self, queryset, counts=False, min_count=None):
+        """
+        Obtain a list of tags associated with instances of a model
+        contained in the given queryset.
+
+        If ``counts`` is True, a ``count`` attribute will be added to
+        each tag, indicating how many times it has been used against
+        the Model class in question.
+
+        If ``min_count`` is given, only tags which have a ``count``
+        greater than or equal to ``min_count`` will be returned.
+        Passing a value for ``min_count`` implies ``counts=True``.
+        """
+
+        extra_joins = ' '.join(queryset.query.get_from_clause()[0][1:])
+        where, params = queryset.query.where.as_sql()
+        if where:
+            extra_criteria = 'AND %s' % where
+        else:
+            extra_criteria = ''
+        return self._get_usage(queryset.model, counts, min_count, extra_joins, extra_criteria, params)
 
     def copy_attachments(self, from_object, to_object, deepcopy=False):
         """
