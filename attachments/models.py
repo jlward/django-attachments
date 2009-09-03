@@ -100,7 +100,11 @@ class AttachmentManager(models.Manager):
         cursor.execute(query % (extra_joins, extra_criteria, min_count_sql), params)
         attachments = []
         for row in cursor.fetchall():
-            result_tuple = zip(field_cols, row[:-1])
+            if counts:
+                field_row = row[:-1]
+            else:
+                field_row = row
+            result_tuple = zip(field_cols, field_row)
             result_dict = {}
             for col, val in result_tuple:
                 result_dict[col] = val
