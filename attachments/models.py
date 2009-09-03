@@ -65,9 +65,12 @@ class AttachmentManager(models.Manager):
 
         model_table = qn(model._meta.db_table)
         model_pk = '%s.%s' % (model_table, qn(model._meta.pk.column))
-        field_cols = [qn(field.attname) for field in self.model._meta.local_fields]
+
+        # Grab all of the attachment fields
+        field_cols = [field.attname for field in self.model._meta.local_fields]
+        quoted_field_cols = [qn(col) for col in field_cols]
         attachment = qn(self.model._meta.db_table)
-        field_cols = ['%s.%s' % (attachment, col) for col in field_cols]
+        table_field_cols = ['%s.%s' % (attachment, col) for col in quoted_field_cols]
         query = """
         SELECT DISTINCT %(fields)s%(count_sql)s
         FROM
@@ -80,7 +83,7 @@ class AttachmentManager(models.Manager):
         GROUP BY %(attachment)s.id
         %%s
         ORDER BY %(attachment)s.id ASC""" % {
-            'fields': ', '.join(field_cols),
+            'fields': ', '.join(table_field_cols),
             'attachment': attachment,
             'count_sql': counts and (', COUNT(%s)' % model_pk) or '',
             'model': model_table,
@@ -97,7 +100,11 @@ class AttachmentManager(models.Manager):
         cursor.execute(query % (extra_joins, extra_criteria, min_count_sql), params)
         attachments = []
         for row in cursor.fetchall():
-            a = self.model(*row[:-1])
+            result_tuple = zip(field_cols, row[:-1])
+            result_dict = {}
+            for col, val in result_tuple:
+                result_dict[col] = val
+            a = self.model(**result_dict)
             if counts:
                 a.count = row[-1:]
             attachments.append(a)
