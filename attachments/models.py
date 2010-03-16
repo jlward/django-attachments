@@ -209,7 +209,7 @@ class Attachment(models.Model):
         super(Attachment, self).save(force_insert, force_update)
 
     def file_url(self):
-        return encoding.iri_to_uri(self.file.url)
+        return encoding.iri_to_uri(urlquote(self.file.url))
 
     def file_name(self):
         """
